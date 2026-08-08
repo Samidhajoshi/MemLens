@@ -216,19 +216,7 @@ memlens/
   CMakeLists.txt
 ```
 
-## Resume lines this actually supports
 
-- "Built a C++ memory profiler that intercepts allocations via
-  `operator new`/`delete` overriding, capturing call sites and
-  detecting leaks, double-frees, and allocation-type mismatches;
-  validated thread-safety under concurrent load and fixed a
-  sized-deallocation gap that was silently skipping single-object
-  `delete` tracking."
-- "Replaced a shell-injection-prone `system()` call with direct
-  `execvp()` process spawning."
-- "Decoupled the reporting engine (C++, JSON output) from
-  visualization (static HTML/JS dashboard), including a custom
-  memory-map view."
 
 Next, most valuable step: the `LD_PRELOAD` `malloc`/`free` hook, so
 MemLens can see allocations inside the STL and any linked library —
