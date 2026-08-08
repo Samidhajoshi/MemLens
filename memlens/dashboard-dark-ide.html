@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemLens — Memory Profiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-primary:#0D1117;
+    --bg-secondary:#161B22;
+    --bg-panel:#1C2128;
+    --bg-panel-hover:#22272E;
+    --border:#30363D;
+    --border-subtle:#21262D;
+    --text-primary:#F0F6FC;
+    --text-secondary:#8B949E;
+    --text-tertiary:#636C76;
+    --accent:#2F81F7;
+    --accent-dim:rgba(47,129,247,0.12);
+    --success:#3FB950;
+    --success-dim:rgba(63,185,80,0.12);
+    --warning:#D29922;
+    --warning-dim:rgba(210,153,34,0.12);
+    --danger:#F85149;
+    --danger-dim:rgba(248,81,73,0.12);
+    --radius:6px;
+    --font-ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg-primary);
+    color:var(--text-primary);
+    font-family:var(--font-ui);
+    font-size:13px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--accent-dim);color:var(--text-primary);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
+  ::-webkit-scrollbar-thumb:hover{background:#3d4551;}
+
+  /* ---------- App shell ---------- */
+  .app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;}
+
+  /* Top bar */
+  .topbar{
+    grid-column:1 / -1;
+    display:flex;align-items:center;gap:16px;
+    padding:0 16px;
+    background:var(--bg-secondary);
+    border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap;}
+  .brand-mark{
+    width:22px;height:22px;border-radius:5px;
+    background:linear-gradient(135deg,var(--accent),#1a5fd6);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-weight:700;font-size:12px;color:#fff;
+    flex-shrink:0;
+  }
+  .brand-sub{color:var(--text-secondary);font-weight:400;font-size:12px;border-left:1px solid var(--border);padding-left:8px;margin-left:2px;}
+  .topbar-spacer{flex:1;}
+  .topbar-file{
+    font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:5px 10px; display:flex; align-items:center; gap:6px; max-width:360px;
+  }
+  .topbar-file .dot{width:6px;height:6px;border-radius:50%;background:var(--text-tertiary);flex-shrink:0;}
+  .topbar-file.has-issues .dot{background:var(--danger);}
+  .topbar-file span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .btn{
+    font-family:var(--font-ui);font-size:12px;font-weight:500;
+    background:var(--bg-panel);color:var(--text-primary);
+    border:1px solid var(--border);border-radius:var(--radius);
+    padding:6px 12px;cursor:pointer;transition:background .12s,border-color .12s;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:var(--bg-panel-hover);border-color:#3d4551;}
+  .btn-accent{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-accent:hover{background:#2872da;}
+  #fileInput{display:none;}
+
+  /* Sidebar */
+  .sidebar{
+    background:var(--bg-secondary);
+    border-right:1px solid var(--border);
+    padding:12px 8px;
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);padding:10px 10px 6px;font-weight:600;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:7px 10px;border-radius:var(--radius);
+    color:var(--text-secondary);font-size:13px;font-weight:500;
+    cursor:pointer;user-select:none;border:1px solid transparent;
+    transition:background .12s,color .12s;
+  }
+  .nav-item svg{flex-shrink:0;opacity:.85;}
+  .nav-item:hover{background:var(--bg-panel);color:var(--text-primary);}
+  .nav-item.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(47,129,247,.25);}
+  .nav-item.active svg{opacity:1;}
+  .nav-badge{
+    margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:600;
+    background:var(--bg-panel);color:var(--text-secondary);border-radius:10px;padding:1px 6px;
+  }
+  .nav-badge.danger{background:var(--danger-dim);color:var(--danger);}
+  .nav-badge.warning{background:var(--warning-dim);color:var(--warning);}
+
+  /* Main content */
+  .main{overflow-y:auto;padding:22px 28px 60px;}
+  .view{display:none;animation:fadeIn .15s ease;}
+  .view.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(2px);}to{opacity:1;transform:none;}}
+
+  .view-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+  .view-title{font-size:18px;font-weight:600;letter-spacing:-0.01em;}
+  .view-desc{color:var(--text-secondary);font-size:12.5px;margin-top:3px;}
+
+  /* Cards */
+  .card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+  .stat-card{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;
+    padding:14px 16px;position:relative;overflow:hidden;
+  }
+  .stat-card .label{color:var(--text-secondary);font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;}
+  .stat-card .value{font-family:var(--font-mono);font-size:24px;font-weight:600;margin-top:8px;letter-spacing:-0.02em;}
+  .stat-card .sub{font-size:11.5px;color:var(--text-tertiary);margin-top:4px;}
+  .stat-card.ok .value{color:var(--success);}
+  .stat-card.warn .value{color:var(--warning);}
+  .stat-card.bad .value{color:var(--danger);}
+  .stat-card .bar-accent{position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .stat-card.ok .bar-accent{background:var(--success);}
+  .stat-card.warn .bar-accent{background:var(--warning);}
+  .stat-card.bad .bar-accent{background:var(--danger);}
+  .stat-card.neutral .bar-accent{background:var(--accent);}
+
+  .panel-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;margin-bottom:14px;}
+  .panel{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;
+    padding:16px 18px;
+  }
+  .panel h3{font-size:12.5px;font-weight:600;margin-bottom:2px;}
+  .panel .panel-sub{color:var(--text-tertiary);font-size:11px;margin-bottom:14px;}
+
+  /* Bars */
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .bar-row:last-child{margin-bottom:0;}
+  .bar-label{
+    font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);
+    width:150px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .bar-track{flex:1;height:8px;background:var(--bg-secondary);border-radius:4px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .3s ease;}
+  .bar-count{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);width:32px;text-align:right;flex-shrink:0;}
+
+  .status-banner{
+    display:flex;align-items:center;gap:10px;
+    padding:11px 16px;border-radius:8px;margin-bottom:18px;font-size:12.5px;font-weight:500;
+    border:1px solid;
+  }
+  .status-banner.bad{background:var(--danger-dim);border-color:rgba(248,81,73,.3);color:#ffb3ae;}
+  .status-banner.ok{background:var(--success-dim);border-color:rgba(63,185,80,.3);color:#8ee89d;}
+
+  /* Tables */
+  .table-wrap{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;}
+  th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--text-tertiary);font-weight:600;padding:10px 14px;
+    background:var(--bg-secondary);border-bottom:1px solid var(--border);
+    cursor:pointer;user-select:none;white-space:nowrap;
+  }
+  th:hover{color:var(--text-secondary);}
+  th.sorted{color:var(--accent);}
+  td{padding:10px 14px;border-bottom:1px solid var(--border-subtle);font-size:12.5px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .1s;}
+  tbody tr:hover{background:var(--bg-panel-hover);}
+  .mono{font-family:var(--font-mono);}
+  .cell-addr{color:var(--text-secondary);}
+  .cell-loc{color:var(--text-secondary);}
+  .cell-loc b{color:var(--text-primary);font-weight:500;}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:10px;
+    font-family:var(--font-ui);white-space:nowrap;
+  }
+  .badge-danger{background:var(--danger-dim);color:var(--danger);}
+  .badge-warning{background:var(--warning-dim);color:var(--warning);}
+  .badge-neutral{background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border);}
+  .badge-success{background:var(--success-dim);color:var(--success);}
+  .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+  .toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:center;}
+  .search-input{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:7px 10px 7px 30px;font-size:12px;color:var(--text-primary);font-family:var(--font-ui);
+    width:260px;position:relative;
+  }
+  .search-wrap{position:relative;}
+  .search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);}
+  .search-input::placeholder{color:var(--text-tertiary);}
+  .search-input:focus{outline:none;border-color:var(--accent);}
+  .toolbar-count{color:var(--text-tertiary);font-size:11.5px;margin-left:auto;}
+
+  .empty-state{
+    text-align:center;padding:50px 20px;color:var(--text-secondary);
+  }
+  .empty-state .icon{color:var(--success);margin-bottom:10px;}
+  .empty-state .title{font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;}
+  .empty-state .desc{font-size:12px;color:var(--text-tertiary);}
+
+  /* Memory map */
+  .memmap-legend{display:flex;gap:16px;margin-bottom:14px;font-size:11.5px;color:var(--text-secondary);}
+  .memmap-legend .item{display:flex;align-items:center;gap:6px;}
+  .memmap-legend .swatch{width:10px;height:10px;border-radius:2px;}
+  .memmap-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:3px;
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;
+  }
+  .memmap-block{
+    aspect-ratio:1;border-radius:3px;cursor:pointer;position:relative;
+    transition:transform .1s;
+  }
+  .memmap-block:hover{transform:scale(1.15);z-index:2;}
+  .memmap-block.leaked{background:var(--danger);}
+  .memmap-block.freed{background:var(--border);}
+  .memmap-block.invalid{background:var(--warning);}
+  .mm-tooltip{
+    position:fixed;background:var(--bg-secondary);border:1px solid var(--border);
+    border-radius:6px;padding:8px 10px;font-size:11px;font-family:var(--font-mono);
+    pointer-events:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);display:none;
+    max-width:260px;
+  }
+  .mm-tooltip .t-title{font-family:var(--font-ui);font-weight:600;font-size:11.5px;margin-bottom:4px;color:var(--text-primary);}
+  .mm-tooltip .t-row{color:var(--text-secondary);}
+
+  /* About */
+  .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .about-grid .panel p{color:var(--text-secondary);font-size:12.5px;line-height:1.7;margin-bottom:10px;}
+  .about-grid code{font-family:var(--font-mono);background:var(--bg-secondary);padding:1px 5px;border-radius:4px;font-size:11.5px;color:#a5c6ff;}
+  .limitation-list{list-style:none;}
+  .limitation-list li{
+    font-size:12px;color:var(--text-secondary);padding:7px 0 7px 16px;
+    border-bottom:1px solid var(--border-subtle);position:relative;
+  }
+  .limitation-list li:last-child{border-bottom:none;}
+  .limitation-list li::before{content:'—';position:absolute;left:0;color:var(--text-tertiary);}
+
+  .kbd{font-family:var(--font-mono);background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10.5px;}
+
+  @media (max-width:860px){
+    .card-grid{grid-template-columns:repeat(2,1fr);}
+    .panel-grid{grid-template-columns:1fr;}
+    .about-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">ML</div>
+      MemLens
+      <span class="brand-sub">C++ Memory Profiler</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-file" id="fileStatus">
+      <span class="dot"></span>
+      <span id="fileStatusText">Loading sample report…</span>
+    </div>
+    <button class="btn" id="loadBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Load report
+    </button>
+    <input type="file" id="fileInput" accept="application/json">
+    <button class="btn btn-accent" id="exportBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export JSON
+    </button>
+  </div>
+
+  <div class="sidebar">
+    <div class="nav-label">Analysis</div>
+    <div class="nav-item active" data-view="overview">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" data-view="leaks">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 0-5 5c0 3 2 4 2 8a3 3 0 0 0 6 0c0-4 2-5 2-8a5 5 0 0 0-5-5z"/></svg>
+      Leak Detection
+      <span class="nav-badge danger" id="navLeakBadge">0</span>
+    </div>
+    <div class="nav-item" data-view="invalid">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Invalid Frees
+      <span class="nav-badge warning" id="navInvalidBadge">0</span>
+    </div>
+    <div class="nav-item" data-view="sites">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Allocation Sites
+    </div>
+    <div class="nav-item" data-view="memmap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Memory Map
+    </div>
+    <div class="nav-label">Info</div>
+    <div class="nav-item" data-view="about">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      About &amp; Limitations
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Overview</div>
+          <div class="view-desc" id="overviewDesc">Session summary</div>
+        </div>
+      </div>
+
+      <div id="statusBanner"></div>
+
+      <div class="card-grid">
+        <div class="stat-card neutral"><div class="bar-accent"></div>
+          <div class="label">Total Allocations</div>
+          <div class="value" id="statTotalAlloc">—</div>
+          <div class="sub" id="statDealloc">—</div>
+        </div>
+        <div class="stat-card neutral"><div class="bar-accent"></div>
+          <div class="label">Peak Memory</div>
+          <div class="value" id="statPeak">—</div>
+          <div class="sub" id="statCurrent">—</div>
+        </div>
+        <div class="stat-card" id="cardLeaks"><div class="bar-accent"></div>
+          <div class="label">Memory Leaks</div>
+          <div class="value" id="statLeaks">—</div>
+          <div class="sub" id="statLeakBytes">—</div>
+        </div>
+        <div class="stat-card" id="cardInvalid"><div class="bar-accent"></div>
+          <div class="label">Invalid Frees</div>
+          <div class="value" id="statInvalid">—</div>
+          <div class="sub">double-frees &amp; mismatches</div>
+        </div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Top allocation sites</h3>
+          <div class="panel-sub">Call sites ranked by allocation count</div>
+          <div id="sitesChart"></div>
+        </div>
+        <div class="panel">
+          <h3>Leak size breakdown</h3>
+          <div class="panel-sub">Largest leaked blocks, by byte size</div>
+          <div id="leakSizeChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEAKS -->
+    <div class="view" id="view-leaks">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Leak Detection</div>
+          <div class="view-desc">Allocations still outstanding when the report was generated</div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" id="leakSearch" placeholder="Filter by file, address…">
+        </div>
+        <div class="toolbar-count" id="leakCount"></div>
+      </div>
+      <div class="table-wrap">
+        <table id="leakTable">
+          <thead><tr>
+            <th data-sort="severity">Severity</th>
+            <th data-sort="address">Address</th>
+            <th data-sort="size">Size</th>
+            <th data-sort="location">Location</th>
+            <th data-sort="kind">Kind</th>
+            <th data-sort="threadId">Thread</th>
+          </tr></thead>
+          <tbody id="leakTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="leakEmpty" style="display:none;">
+          <div class="icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div class="title">No leaks detected</div>
+          <div class="desc">Every tracked allocation was freed before the report was generated.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVALID FREES -->
+    <div class="view" id="view-invalid">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Invalid Frees</div>
+          <div class="view-desc">Double-frees and new[]/delete mismatches caught on tracked pointers</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="invalidTable">
+          <thead><tr>
+            <th>Type</th>
+            <th>Address</th>
+            <th>Detail</th>
+            <th>Thread</th>
+            <th>Timestamp</th>
+          </tr></thead>
+          <tbody id="invalidTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="invalidEmpty" style="display:none;">
+          <div class="icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div class="title">No invalid frees</div>
+          <div class="desc">No double-frees or allocation-type mismatches were detected on tracked pointers.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALLOCATION SITES -->
+    <div class="view" id="view-sites">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Allocation Sites</div>
+          <div class="view-desc">Every call site that allocated memory, ranked by frequency</div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" id="siteSearch" placeholder="Filter by file…">
+        </div>
+        <div class="toolbar-count" id="siteCount"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Location</th><th>Allocation count</th><th>Share</th></tr></thead>
+          <tbody id="sitesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MEMORY MAP -->
+    <div class="view" id="view-memmap">
+      <div class="view-header">
+        <div>
+          <div class="view-title">Memory Map</div>
+          <div class="view-desc" id="memmapDesc">One block per tracked allocation — hover for details</div>
+        </div>
+      </div>
+      <div class="memmap-legend">
+        <div class="item"><span class="swatch" style="background:var(--danger)"></span> Leaked</div>
+        <div class="item"><span class="swatch" style="background:var(--border)"></span> Freed cleanly</div>
+        <div class="item"><span class="swatch" style="background:var(--warning)"></span> Invalid free</div>
+      </div>
+      <div class="memmap-grid" id="memmapGrid"></div>
+    </div>
+
+    <!-- ABOUT -->
+    <div class="view" id="view-about">
+      <div class="view-header">
+        <div>
+          <div class="view-title">About &amp; Limitations</div>
+          <div class="view-desc">What MemLens actually does, and what it doesn't</div>
+        </div>
+      </div>
+      <div class="about-grid">
+        <div class="panel">
+          <h3 style="margin-bottom:10px;">How it works</h3>
+          <p>MemLens overrides global <code>operator new</code>/<code>operator delete</code> in the C++ file you instrument. Including <code>memlens.h</code> redefines <code>new</code> to capture the file and line of every call site, so each allocation is recorded with its size, location, thread, and timestamp.</p>
+          <p>When the profiled program exits, MemLens compares every allocation against its matching free: anything never freed is a leak, anything freed twice is a double-free, and anything allocated with <code>new[]</code> but freed with plain <code>delete</code> (or vice versa) is flagged as a mismatch. The engine writes one JSON file; this dashboard is the only thing that renders it.</p>
+        </div>
+        <div class="panel">
+          <h3 style="margin-bottom:10px;">Known limitations</h3>
+          <ul class="limitation-list">
+            <li>Only tracks <code>new</code>/<code>delete</code> in the file you instrument — allocations inside the STL, other translation units, or third-party libraries aren't visible unless you also hook <code>malloc</code>/<code>free</code> (e.g. via <code>LD_PRELOAD</code>).</li>
+            <li>Tracks by pointer address in a single map. If a freed address gets reused later in the same run, the map only reflects that address's most recent allocation — cumulative statistics stay accurate, but the full allocation list is a final snapshot, not a complete history.</li>
+            <li>No stack traces — only the immediate <code>__FILE__</code>/<code>__LINE__</code> of the call site, not the full call chain.</li>
+            <li>A detected double-free skips the second real <code>free()</code> call to avoid crashing before the report can be written — the block is deliberately leaked rather than actually double-freed at the OS level.</li>
+            <li>Single-process, single-run snapshot — no timeline, no comparison against a previous baseline yet.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="mm-tooltip" id="mmTooltip"></div>
+
+<script>
+const FALLBACK_REPORT = {"project": "MemLens", "generatedAt": "2026-07-21 13:44:07", "statistics": {"totalAllocations": 11, "totalDeallocations": 8, "currentMemoryUsage": 4384, "peakMemoryUsage": 4640, "leakCount": 3, "invalidFreeCount": 2}, "leaks": [{"address": "0x55e1ad0b02b0", "size": 4000, "file": "showcase_demo.cpp", "line": 15, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}, {"address": "0x55e1ad0b18a0", "size": 128, "file": "showcase_demo.cpp", "line": 16, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}, {"address": "0x55e1ad0b1c50", "size": 256, "file": "showcase_demo.cpp", "line": 9, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}], "invalidFrees": [{"type": "DoubleFree", "address": "0x55e1ad0b14b0", "detail": "pointer was already freed earlier", "timestamp": "2026-07-21 13:44:07", "threadId": 1}, {"type": "AllocMismatch", "address": "0x55e1ad0b2040", "detail": "allocated with new[] but freed with delete", "timestamp": "2026-07-21 13:44:07", "threadId": 1}], "allocationSites": [{"location": "showcase_demo.cpp:33", "count": 5}, {"location": "showcase_demo.cpp:15", "count": 1}, {"location": "showcase_demo.cpp:16", "count": 1}, {"location": "showcase_demo.cpp:19", "count": 1}, {"location": "showcase_demo.cpp:23", "count": 1}, {"location": "showcase_demo.cpp:28", "count": 1}, {"location": "showcase_demo.cpp:9", "count": 1}], "allocations": [{"address": "0x55e1ad0b02b0", "size": 4000, "file": "showcase_demo.cpp", "line": 15, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b14b0", "size": 4, "file": "showcase_demo.cpp", "line": 33, "freed": true, "kind": "single"}, {"address": "0x55e1ad0b18a0", "size": 128, "file": "showcase_demo.cpp", "line": 16, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b1c50", "size": 256, "file": "showcase_demo.cpp", "line": 9, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b2040", "size": 256, "file": "showcase_demo.cpp", "line": 28, "freed": true, "kind": "array"}], "allocationsTruncated": false};
+
+let report = null;
+let leakSort = {key:'size', dir:-1};
+
+function fmtBytes(n){
+  if(n < 1024) return n + ' B';
+  if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(2) + ' MB';
+}
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function locOf(a){ return a.file + ':' + a.line; }
+
+function setFileStatus(name, hasIssues){
+  const el = document.getElementById('fileStatus');
+  document.getElementById('fileStatusText').textContent = name;
+  el.classList.toggle('has-issues', !!hasIssues);
+}
+
+async function loadInitial(){
+  try{
+    const res = await fetch('memory_report.json', {cache:'no-store'});
+    if(res.ok){
+      const data = await res.json();
+      applyReport(data, 'memory_report.json');
+      return;
+    }
+  }catch(e){ /* fetch unavailable (e.g. file:// origin) — fall through */ }
+  applyReport(FALLBACK_REPORT, 'sample report (showcase_demo.cpp) — load your own via "Load report"');
+}
+
+function applyReport(data, label){
+  report = data;
+  setFileStatus(label, (data.statistics.leakCount + data.statistics.invalidFreeCount) > 0);
+  renderAll();
+}
+
+document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const data = JSON.parse(ev.target.result);
+      applyReport(data, file.name);
+    }catch(err){
+      alert('Could not parse that file as a MemLens JSON report.');
+    }
+  };
+  reader.readAsText(file);
+});
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if(!report) return;
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'memory_report.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ---- Nav ----
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-' + item.dataset.view).classList.add('active');
+  });
+});
+
+function renderAll(){
+  const s = report.statistics;
+  document.getElementById('overviewDesc').textContent =
+    `${s.totalAllocations} allocations tracked · generated ${report.generatedAt || ''}`;
+
+  document.getElementById('statTotalAlloc').textContent = s.totalAllocations;
+  document.getElementById('statDealloc').textContent = s.totalDeallocations + ' deallocations';
+  document.getElementById('statPeak').textContent = fmtBytes(s.peakMemoryUsage);
+  document.getElementById('statCurrent').textContent = fmtBytes(s.currentMemoryUsage) + ' still resident';
+  document.getElementById('statLeaks').textContent = s.leakCount;
+  document.getElementById('statInvalid').textContent = s.invalidFreeCount;
+
+  const leakBytes = (report.leaks||[]).reduce((a,l)=>a+l.size,0);
+  document.getElementById('statLeakBytes').textContent = s.leakCount ? fmtBytes(leakBytes) + ' leaked' : 'none outstanding';
+
+  document.getElementById('cardLeaks').className = 'stat-card ' + (s.leakCount ? 'bad' : 'ok');
+  document.getElementById('cardInvalid').className = 'stat-card ' + (s.invalidFreeCount ? 'warn' : 'ok');
+
+  document.getElementById('navLeakBadge').textContent = s.leakCount;
+  document.getElementById('navLeakBadge').style.display = s.leakCount ? 'inline-flex' : 'none';
+  document.getElementById('navInvalidBadge').textContent = s.invalidFreeCount;
+  document.getElementById('navInvalidBadge').style.display = s.invalidFreeCount ? 'inline-flex' : 'none';
+
+  const banner = document.getElementById('statusBanner');
+  if(s.leakCount || s.invalidFreeCount){
+    banner.innerHTML = `<div class="status-banner bad">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ${s.leakCount} leak${s.leakCount!==1?'s':''} and ${s.invalidFreeCount} invalid free${s.invalidFreeCount!==1?'s':''} found — see Leak Detection and Invalid Frees.
+    </div>`;
+  } else {
+    banner.innerHTML = `<div class="status-banner ok">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Clean run — every tracked allocation was freed correctly, with no invalid frees.
+    </div>`;
+  }
+
+  renderSitesChart();
+  renderLeakSizeChart();
+  renderLeakTable();
+  renderInvalidTable();
+  renderSitesTable();
+  renderMemMap();
+}
+
+function renderSitesChart(){
+  const sites = (report.allocationSites||[]).slice(0,8);
+  const max = Math.max(1, ...sites.map(s=>s.count));
+  document.getElementById('sitesChart').innerHTML = sites.map(s => `
+    <div class="bar-row">
+      <div class="bar-label" title="${esc(s.location)}">${esc(s.location)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(s.count/max*100).toFixed(1)}%"></div></div>
+      <div class="bar-count">${s.count}</div>
+    </div>`).join('') || '<div class="panel-sub">No allocation sites recorded.</div>';
+}
+
+function renderLeakSizeChart(){
+  const leaks = [...(report.leaks||[])].sort((a,b)=>b.size-a.size).slice(0,8);
+  const max = Math.max(1, ...leaks.map(l=>l.size));
+  document.getElementById('leakSizeChart').innerHTML = leaks.map(l => `
+    <div class="bar-row">
+      <div class="bar-label" title="${esc(locOf(l))}">${esc(locOf(l))}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(l.size/max*100).toFixed(1)}%;background:var(--danger)"></div></div>
+      <div class="bar-count">${fmtBytes(l.size)}</div>
+    </div>`).join('') || '<div class="panel-sub">No leaks to show.</div>';
+}
+
+function leakSeverity(size){
+  if(size >= 1024) return {label:'High', cls:'badge-danger'};
+  if(size >= 128) return {label:'Medium', cls:'badge-warning'};
+  return {label:'Low', cls:'badge-neutral'};
+}
+
+function renderLeakTable(){
+  let leaks = [...(report.leaks||[])];
+  const q = (document.getElementById('leakSearch').value||'').toLowerCase();
+  if(q) leaks = leaks.filter(l => locOf(l).toLowerCase().includes(q) || l.address.toLowerCase().includes(q));
+
+  const sevRank = {High:2, Medium:1, Low:0};
+  leaks.sort((a,b) => {
+    let av, bv;
+    if(leakSort.key === 'severity'){ av = sevRank[leakSeverity(a.size).label]; bv = sevRank[leakSeverity(b.size).label]; }
+    else if(leakSort.key === 'location'){ av = locOf(a); bv = locOf(b); }
+    else { av = a[leakSort.key]; bv = b[leakSort.key]; }
+    if(av < bv) return -1*leakSort.dir;
+    if(av > bv) return 1*leakSort.dir;
+    return 0;
+  });
+
+  document.getElementById('leakCount').textContent = `${leaks.length} of ${(report.leaks||[]).length} leaks`;
+  document.getElementById('leakTableBody').innerHTML = leaks.map(l => {
+    const sev = leakSeverity(l.size);
+    return `<tr>
+      <td><span class="badge ${sev.cls}"><span class="badge-dot"></span>${sev.label}</span></td>
+      <td class="mono cell-addr">${esc(l.address)}</td>
+      <td class="mono">${fmtBytes(l.size)}</td>
+      <td class="cell-loc mono"><b>${esc(l.file)}</b>:${l.line}</td>
+      <td><span class="badge badge-neutral">${l.kind === 'array' ? 'new[]' : 'new'}</span></td>
+      <td class="mono">#${l.threadId}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('leakTable').style.display = leaks.length ? '' : 'none';
+  document.getElementById('leakEmpty').style.display = leaks.length ? 'none' : 'block';
+}
+
+document.getElementById('leakSearch').addEventListener('input', renderLeakTable);
+document.querySelectorAll('#leakTable th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if(leakSort.key === key) leakSort.dir *= -1; else leakSort = {key, dir:1};
+    document.querySelectorAll('#leakTable th').forEach(h=>h.classList.remove('sorted'));
+    th.classList.add('sorted');
+    renderLeakTable();
+  });
+});
+
+function renderInvalidTable(){
+  const events = report.invalidFrees||[];
+  document.getElementById('invalidTableBody').innerHTML = events.map(ev => `
+    <tr>
+      <td><span class="badge ${ev.type==='DoubleFree'?'badge-danger':'badge-warning'}"><span class="badge-dot"></span>${ev.type === 'DoubleFree' ? 'Double Free' : 'Alloc Mismatch'}</span></td>
+      <td class="mono cell-addr">${esc(ev.address)}</td>
+      <td>${esc(ev.detail)}</td>
+      <td class="mono">#${ev.threadId}</td>
+      <td class="mono" style="color:var(--text-tertiary)">${esc(ev.timestamp||'')}</td>
+    </tr>`).join('');
+  document.getElementById('invalidTable').style.display = events.length ? '' : 'none';
+  document.getElementById('invalidEmpty').style.display = events.length ? 'none' : 'block';
+}
+
+function renderSitesTable(){
+  let sites = [...(report.allocationSites||[])];
+  const q = (document.getElementById('siteSearch').value||'').toLowerCase();
+  if(q) sites = sites.filter(s => s.location.toLowerCase().includes(q));
+  const total = (report.allocationSites||[]).reduce((a,s)=>a+s.count,0) || 1;
+  document.getElementById('siteCount').textContent = `${sites.length} sites`;
+  document.getElementById('sitesTableBody').innerHTML = sites.map(s => `
+    <tr>
+      <td class="mono cell-loc">${esc(s.location)}</td>
+      <td class="mono">${s.count}</td>
+      <td class="mono" style="color:var(--text-tertiary)">${(s.count/total*100).toFixed(1)}%</td>
+    </tr>`).join('');
+}
+document.getElementById('siteSearch').addEventListener('input', renderSitesTable);
+
+function renderMemMap(){
+  const allocs = report.allocations || [];
+  const invalidAddrs = new Set((report.invalidFrees||[]).map(e => e.address));
+  const grid = document.getElementById('memmapGrid');
+  const tooltip = document.getElementById('mmTooltip');
+
+  document.getElementById('memmapDesc').textContent =
+    allocs.length
+      ? `${allocs.length} tracked allocation${allocs.length!==1?'s':''} shown${report.allocationsTruncated ? ' (truncated — statistics above reflect the full run)' : ''}`
+      : 'No allocation data in this report';
+
+  if(!allocs.length){
+    grid.innerHTML = '<div class="panel-sub" style="padding:20px;">This report has no per-allocation data to map.</div>';
+    return;
+  }
+
+  grid.innerHTML = allocs.map(a => {
+    let cls = 'freed';
+    if(invalidAddrs.has(a.address)) cls = 'invalid';
+    else if(!a.freed) cls = 'leaked';
+    return `<div class="memmap-block ${cls}" data-addr="${esc(a.address)}" data-size="${a.size}" data-file="${esc(a.file)}" data-line="${a.line}" data-kind="${a.kind}" data-freed="${a.freed}"></div>`;
+  }).join('');
+
+  grid.querySelectorAll('.memmap-block').forEach(block => {
+    block.addEventListener('mousemove', (e) => {
+      const d = block.dataset;
+      const state = d.freed === 'true' ? (invalidAddrs.has(d.addr) ? 'Invalid free' : 'Freed cleanly') : 'Leaked (still allocated)';
+      tooltip.innerHTML = `<div class="t-title">${esc(d.addr)}</div>
+        <div class="t-row">size: ${fmtBytes(Number(d.size))}</div>
+        <div class="t-row">site: ${esc(d.file)}:${d.line}</div>
+        <div class="t-row">kind: ${d.kind === 'array' ? 'new[]' : 'new'}</div>
+        <div class="t-row">state: ${state}</div>`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY + 14) + 'px';
+    });
+    block.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+  });
+}
+
+loadInitial();
+</script>
+</body>
+</html>

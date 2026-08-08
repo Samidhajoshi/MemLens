@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemLens — Memory Profiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --linen:#DDC5A9;
+    --surface:#F8F6F3;
+    --white:#FFFFFF;
+    --venice:#8894B7;
+    --venice-dim:rgba(136,148,183,0.14);
+    --shine:#F5C74D;
+    --shine-dim:rgba(245,199,77,0.22);
+    --ink:#2C2C2C;
+    --ink-soft:#4A4A4A;
+    --neutral:#B6AEA5;
+    --neutral-line:rgba(74,74,74,0.14);
+    --leak:#C1666B;
+    --leak-dim:rgba(193,102,107,0.14);
+    --ok:#6E9075;
+    --ok-dim:rgba(110,144,117,0.14);
+    --radius-lg:16px;
+    --radius-md:12px;
+    --radius-sm:8px;
+    --font-head:'Space Grotesk',sans-serif;
+    --font-body:'Inter',-apple-system,sans-serif;
+    --font-mono:'JetBrains Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--linen);
+    color:var(--ink-soft);
+    font-family:var(--font-body);
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.font-head{font-family:var(--font-head);color:var(--ink);letter-spacing:-0.01em;}
+  ::selection{background:var(--shine-dim);}
+
+  a,button{font-family:inherit;}
+
+  /* ---- Top nav ---- */
+  .topnav{
+    display:flex;align-items:center;gap:28px;
+    padding:18px 32px;
+    max-width:1240px;margin:0 auto;
+  }
+  .logo{display:flex;align-items:center;gap:10px;font-family:var(--font-head);font-weight:700;font-size:17px;color:var(--ink);}
+  .logo-mark{
+    width:30px;height:30px;border-radius:9px;background:var(--venice);
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    font-family:var(--font-head);font-weight:700;font-size:13px;flex-shrink:0;
+  }
+  .nav-links{display:flex;gap:4px;margin:0 auto;background:var(--surface);padding:5px;border-radius:999px;border:1px solid var(--neutral-line);}
+  .nav-link{
+    font-size:13px;font-weight:500;color:var(--ink-soft);
+    padding:8px 16px;border-radius:999px;cursor:pointer;user-select:none;
+    transition:background .15s,color .15s;white-space:nowrap;
+  }
+  .nav-link:hover{color:var(--ink);}
+  .nav-link.active{background:var(--white);color:var(--ink);box-shadow:0 1px 2px rgba(44,44,44,.08);}
+  .nav-actions{display:flex;align-items:center;gap:8px;}
+  .icon-btn{
+    width:36px;height:36px;border-radius:999px;border:1px solid var(--neutral-line);
+    background:var(--surface);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-soft);transition:background .15s,transform .15s;
+  }
+  .icon-btn:hover{background:var(--white);}
+  .btn{
+    font-size:13px;font-weight:600;padding:9px 18px;border-radius:999px;border:1px solid transparent;
+    cursor:pointer;transition:transform .12s,box-shadow .12s;display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-shine{background:var(--shine);color:var(--ink);}
+  .btn-shine:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,199,77,.4);}
+  .btn-outline{background:var(--surface);color:var(--ink-soft);border-color:var(--neutral-line);}
+  .btn-outline:hover{background:var(--white);color:var(--ink);}
+  #fileInput{display:none;}
+
+  /* ---- Shell ---- */
+  .shell{max-width:1240px;margin:0 auto;padding:8px 32px 80px;}
+  .view{display:none;animation:rise .25s ease;}
+  .view.active{display:block;}
+  @keyframes rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+  .page-head{margin:28px 0 22px;}
+  .page-head h1{font-size:24px;margin-bottom:4px;}
+  .page-head p{font-size:13px;color:var(--ink-soft);opacity:.85;}
+
+  .card{
+    background:var(--white);border:1px solid var(--neutral-line);
+    border-radius:var(--radius-lg);padding:24px;
+  }
+
+  /* ---- Hero ---- */
+  .hero{
+    display:grid;grid-template-columns:260px 1fr;gap:32px;
+    align-items:center;padding:32px;margin-top:24px;
+  }
+  .score-ring{position:relative;width:180px;height:180px;margin:0 auto;}
+  .score-ring svg{transform:rotate(-90deg);}
+  .score-ring .track{fill:none;stroke:var(--surface);stroke-width:12;}
+  .score-ring .fill{fill:none;stroke:var(--shine);stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .6s ease, stroke .3s;}
+  .score-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .score-num{font-family:var(--font-head);font-size:38px;font-weight:700;color:var(--ink);}
+  .score-label{font-size:12px;color:var(--ink-soft);font-weight:500;margin-top:2px;}
+
+  .hero-right h2{font-size:20px;margin-bottom:8px;}
+  .hero-right .hero-msg{font-size:13.5px;color:var(--ink-soft);margin-bottom:18px;line-height:1.7;}
+  .hero-stats{display:flex;gap:28px;margin-bottom:20px;flex-wrap:wrap;}
+  .hero-stat .n{font-family:var(--font-head);font-size:22px;font-weight:600;color:var(--ink);}
+  .hero-stat .l{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+
+  /* ---- Grid layouts ---- */
+  .row-2{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;margin-top:20px;}
+  .card h3{font-size:14.5px;margin-bottom:2px;}
+  .card .card-sub{font-size:12px;color:var(--ink-soft);opacity:.8;margin-bottom:18px;}
+
+  /* ---- Breakdown bars ---- */
+  .breakdown-row{margin-bottom:16px;}
+  .breakdown-row:last-child{margin-bottom:0;}
+  .breakdown-top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:7px;}
+  .breakdown-top .name{font-weight:600;color:var(--ink);}
+  .breakdown-top .stat{color:var(--ink-soft);font-family:var(--font-mono);font-size:11.5px;}
+  .breakdown-track{height:9px;background:var(--surface);border-radius:5px;overflow:hidden;}
+  .breakdown-fill{height:100%;border-radius:5px;transition:width .5s ease;}
+
+  /* ---- Timeline placeholder ---- */
+  .placeholder-box{
+    border:1.5px dashed var(--neutral-line);border-radius:var(--radius-md);
+    padding:28px 20px;text-align:center;color:var(--ink-soft);
+  }
+  .placeholder-box svg{color:var(--venice);margin-bottom:10px;opacity:.7;}
+  .placeholder-box .t{font-weight:600;color:var(--ink);font-size:13px;margin-bottom:4px;}
+  .placeholder-box .d{font-size:12px;line-height:1.6;max-width:360px;margin:0 auto;}
+
+  /* ---- Leak cards ---- */
+  .leak-card{
+    display:flex;align-items:flex-start;gap:14px;
+    padding:16px;border:1px solid var(--neutral-line);border-radius:var(--radius-md);
+    margin-bottom:10px;background:var(--surface);
+  }
+  .leak-card:last-child{margin-bottom:0;}
+  .leak-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+  .leak-dot.high{background:var(--leak);}
+  .leak-dot.med{background:var(--shine);}
+  .leak-dot.low{background:var(--venice);}
+  .leak-body{flex:1;}
+  .leak-title{font-weight:600;font-size:13px;color:var(--ink);margin-bottom:3px;}
+  .leak-meta{font-size:12px;color:var(--ink-soft);}
+  .leak-meta .mono{font-family:var(--font-mono);}
+  .leak-est{font-family:var(--font-mono);font-size:12px;color:var(--ink);font-weight:600;white-space:nowrap;margin-top:2px;}
+  .btn-inspect{
+    font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:999px;
+    background:var(--white);border:1px solid var(--neutral-line);color:var(--ink-soft);cursor:pointer;
+    flex-shrink:0;
+  }
+  .btn-inspect:hover{color:var(--ink);background:var(--linen);}
+  .leak-detail{
+    margin-top:10px;padding-top:10px;border-top:1px solid var(--neutral-line);
+    font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);display:none;
+  }
+  .leak-detail.open{display:block;}
+  .leak-detail div{margin-bottom:3px;}
+
+  /* ---- Table ---- */
+  .table-card{padding:0;overflow:hidden;}
+  .table-toolbar{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid var(--neutral-line);}
+  .search-wrap{position:relative;flex:1;max-width:280px;}
+  .search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--neutral);}
+  .search-input{
+    width:100%;background:var(--surface);border:1px solid var(--neutral-line);border-radius:999px;
+    padding:8px 14px 8px 34px;font-size:12.5px;color:var(--ink);font-family:var(--font-body);
+  }
+  .search-input:focus{outline:none;border-color:var(--venice);}
+  .search-input::placeholder{color:var(--neutral);}
+  .table-count{margin-left:auto;font-size:11.5px;color:var(--ink-soft);}
+  table{width:100%;border-collapse:collapse;}
+  th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;
+    color:var(--ink-soft);padding:11px 20px;background:var(--surface);border-bottom:1px solid var(--neutral-line);
+    cursor:pointer;user-select:none;white-space:nowrap;
+  }
+  th:hover{color:var(--ink);}
+  td{padding:12px 20px;font-size:12.5px;border-bottom:1px solid var(--neutral-line);color:var(--ink-soft);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface);}
+  .mono{font-family:var(--font-mono);}
+  .cell-strong{color:var(--ink);font-weight:500;}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:999px;}
+  .pill-ok{background:var(--ok-dim);color:var(--ok);}
+  .pill-heavy{background:var(--shine-dim);color:#8a6d1f;}
+  .pill-leak{background:var(--leak-dim);color:var(--leak);}
+  .pill-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+  .empty-state{padding:56px 20px;text-align:center;}
+  .empty-state svg{color:var(--ok);margin-bottom:12px;}
+  .empty-state .t{font-family:var(--font-head);font-weight:600;font-size:15px;color:var(--ink);margin-bottom:4px;}
+  .empty-state .d{font-size:12.5px;color:var(--ink-soft);}
+
+  /* ---- Memory map ---- */
+  .legend{display:flex;gap:20px;margin:18px 0;font-size:12px;color:var(--ink-soft);}
+  .legend .item{display:flex;align-items:center;gap:7px;}
+  .legend .sw{width:11px;height:11px;border-radius:3px;}
+  .memmap-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:4px;
+    padding:6px;
+  }
+  .memmap-block{aspect-ratio:1;border-radius:4px;cursor:pointer;transition:transform .1s;}
+  .memmap-block:hover{transform:scale(1.18);}
+  .memmap-block.leaked{background:var(--leak);}
+  .memmap-block.freed{background:var(--neutral);}
+  .memmap-block.invalid{background:var(--shine);}
+  .mm-tooltip{
+    position:fixed;background:var(--ink);color:var(--white);border-radius:10px;padding:9px 12px;
+    font-size:11px;font-family:var(--font-mono);pointer-events:none;z-index:50;display:none;max-width:260px;
+    box-shadow:0 10px 30px rgba(44,44,44,.25);
+  }
+  .mm-tooltip .t-title{font-family:var(--font-body);font-weight:600;font-size:11.5px;margin-bottom:4px;}
+  .mm-tooltip .t-row{opacity:.85;}
+
+  /* ---- About ---- */
+  .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
+  .about-grid p{font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:12px;}
+  .about-grid code{font-family:var(--font-mono);background:var(--surface);padding:1.5px 6px;border-radius:5px;font-size:11.5px;color:#5c6690;border:1px solid var(--neutral-line);}
+  .limitation-list{list-style:none;}
+  .limitation-list li{font-size:12.5px;color:var(--ink-soft);padding:10px 0 10px 18px;border-bottom:1px solid var(--neutral-line);position:relative;line-height:1.6;}
+  .limitation-list li:last-child{border-bottom:none;}
+  .limitation-list li::before{content:'';position:absolute;left:0;top:16px;width:6px;height:6px;border-radius:50%;background:var(--venice);}
+  .roadmap-tag{display:inline-block;font-size:10px;font-weight:600;background:var(--venice-dim);color:var(--venice);padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle;}
+
+  /* ---- Drop overlay ---- */
+  .drop-overlay{
+    position:fixed;inset:0;background:rgba(221,197,169,0.92);z-index:100;
+    display:none;align-items:center;justify-content:center;
+  }
+  .drop-overlay.active{display:flex;}
+  .drop-zone{
+    border:2px dashed var(--venice);border-radius:var(--radius-lg);
+    padding:60px 80px;text-align:center;background:var(--white);
+  }
+  .drop-zone svg{color:var(--venice);margin-bottom:14px;}
+  .drop-zone .t{font-family:var(--font-head);font-size:17px;font-weight:600;color:var(--ink);margin-bottom:6px;}
+  .drop-zone .d{font-size:12.5px;color:var(--ink-soft);}
+
+  .status-strip{
+    display:flex;align-items:center;gap:10px;padding:5px 14px;border-radius:999px;
+    font-size:11.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--neutral-line);
+    font-family:var(--font-mono);
+  }
+  .status-strip .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);}
+  .status-strip.bad .dot{background:var(--leak);}
+
+  @media(max-width:900px){
+    .hero{grid-template-columns:1fr;text-align:center;}
+    .hero-stats{justify-content:center;}
+    .row-2, .about-grid{grid-template-columns:1fr;}
+    .nav-links{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="logo"><div class="logo-mark">ML</div>MemLens</div>
+  <div class="nav-links">
+    <div class="nav-link active" data-view="overview">Overview</div>
+    <div class="nav-link" data-view="leaks">Leaks</div>
+    <div class="nav-link" data-view="allocations">Allocations</div>
+    <div class="nav-link" data-view="memmap">Memory Map</div>
+    <div class="nav-link" data-view="about">About</div>
+  </div>
+  <div class="nav-actions">
+    <div class="status-strip" id="fileStatus"><span class="dot"></span><span id="fileStatusText">Loading…</span></div>
+    <button class="icon-btn" id="loadBtn" title="Load a report">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </button>
+    <input type="file" id="fileInput" accept="application/json">
+    <button class="btn btn-outline" id="exportBtn">Export JSON</button>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- OVERVIEW -->
+  <div class="view active" id="view-overview">
+
+    <div class="card hero">
+      <div class="score-ring">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle class="track" cx="90" cy="90" r="78"></circle>
+          <circle class="fill" id="scoreArc" cx="90" cy="90" r="78" stroke-dasharray="490" stroke-dashoffset="490"></circle>
+        </svg>
+        <div class="score-center">
+          <div class="score-num" id="scoreNum">—</div>
+          <div class="score-label" id="scoreWord">—</div>
+        </div>
+      </div>
+      <div class="hero-right">
+        <h2>Memory health</h2>
+        <div class="hero-msg" id="heroMsg">Loading the latest MemLens report…</div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="n" id="heroAllocs">—</div><div class="l">Allocations</div></div>
+          <div class="hero-stat"><div class="n" id="heroLeaks">—</div><div class="l">Leaks</div></div>
+          <div class="hero-stat"><div class="n" id="heroInvalid">—</div><div class="l">Invalid frees</div></div>
+          <div class="hero-stat"><div class="n" id="heroPeak">—</div><div class="l">Peak memory</div></div>
+        </div>
+        <button class="btn btn-shine" id="generateBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Generate report
+        </button>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div class="card">
+        <h3>Heap breakdown</h3>
+        <div class="card-sub">MemLens tracks heap allocations only — stack, static, and shared memory aren't instrumented by this tool</div>
+        <div id="breakdownBars"></div>
+      </div>
+      <div class="card">
+        <h3>Memory over time</h3>
+        <div class="card-sub">Requires periodic sampling during the run</div>
+        <div class="placeholder-box">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="3" y1="20" x2="21" y2="20"/><path d="M5 17c2-6 4-9 6-9s3 5 5 5 3-4 5-4"/></svg>
+          <div class="t">Timeline not captured in this run</div>
+          <div class="d">This report is a single end-of-run snapshot. Sampling memory at intervals during execution is on the roadmap.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <h3>Leak detection</h3>
+      <div class="card-sub">Allocations still outstanding when the profiled program exited</div>
+      <div id="leakCardsOverview"></div>
+    </div>
+
+  </div>
+
+  <!-- LEAKS -->
+  <div class="view" id="view-leaks">
+    <div class="page-head"><h1>Leak detection</h1><p>Every allocation that was never freed, ranked by estimated impact</p></div>
+    <div class="card">
+      <div id="leakCardsFull"></div>
+    </div>
+  </div>
+
+  <!-- ALLOCATIONS -->
+  <div class="view" id="view-allocations">
+    <div class="page-head"><h1>Allocation table</h1><p>Every call site that allocated memory during the run</p></div>
+    <div class="card table-card">
+      <div class="table-toolbar">
+        <div class="search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" id="siteSearch" placeholder="Filter by location…">
+        </div>
+        <div class="table-count" id="siteCount"></div>
+      </div>
+      <table>
+        <thead><tr><th>Location</th><th>Allocations</th><th>Total bytes</th><th>Status</th></tr></thead>
+        <tbody id="sitesTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MEMORY MAP -->
+  <div class="view" id="view-memmap">
+    <div class="page-head"><h1>Memory map</h1><p>One block per tracked allocation, sized by relative byte count — hover for details</p></div>
+    <div class="card">
+      <div class="legend">
+        <div class="item"><span class="sw" style="background:var(--leak)"></span>Leaked</div>
+        <div class="item"><span class="sw" style="background:var(--neutral)"></span>Freed cleanly</div>
+        <div class="item"><span class="sw" style="background:var(--shine)"></span>Invalid free</div>
+      </div>
+      <div class="memmap-grid" id="memmapGrid"></div>
+    </div>
+  </div>
+
+  <!-- ABOUT -->
+  <div class="view" id="view-about">
+    <div class="page-head"><h1>About &amp; limitations</h1><p>What MemLens actually measures, and what it doesn't yet</p></div>
+    <div class="about-grid">
+      <div class="card">
+        <h3 style="margin-bottom:10px;">How it works</h3>
+        <p>MemLens overrides global <code>operator new</code>/<code>operator delete</code> in the C++ file you instrument. Including <code>memlens.h</code> redefines <code>new</code> to capture the file and line of every call site, so each allocation is recorded with its size, location, thread, and timestamp.</p>
+        <p>When the profiled program exits, MemLens compares every allocation against its matching free: anything never freed is a leak, anything freed twice is a double-free, and anything allocated with <code>new[]</code> but freed with plain <code>delete</code> (or vice versa) is flagged as a mismatch. The engine writes one JSON file; this dashboard is the only thing that renders it.</p>
+        <p>The health score above is computed from this run's leak count, leaked bytes, and invalid frees — it's a simple weighted heuristic specific to this tool, not an industry benchmark.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Known limitations</h3>
+        <ul class="limitation-list">
+          <li>Only tracks <code>new</code>/<code>delete</code> in the file you instrument — STL, other translation units, and third-party libraries aren't visible unless you also hook <code>malloc</code>/<code>free</code>.<span class="roadmap-tag">roadmap</span></li>
+          <li>Tracks by pointer address in a single map. A freed address reused later in the same run only shows its most recent allocation in the full list — cumulative statistics stay accurate regardless.</li>
+          <li>No stack traces, just the immediate call site — not the full call chain.</li>
+          <li>A detected double-free skips the second real <code>free()</code> to avoid crashing before the report can be written — the block is deliberately leaked rather than actually double-freed at the OS level.</li>
+          <li>Single snapshot at exit — no timeline sampling and no baseline comparison between runs yet.<span class="roadmap-tag">roadmap</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="mm-tooltip" id="mmTooltip"></div>
+
+<div class="drop-overlay" id="dropOverlay">
+  <div class="drop-zone">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <div class="t">Drop a memory_report.json file</div>
+    <div class="d">Release to load it into MemLens</div>
+  </div>
+</div>
+
+<script>
+const FALLBACK_REPORT = {"project": "MemLens", "generatedAt": "2026-07-21 13:44:07", "statistics": {"totalAllocations": 11, "totalDeallocations": 8, "currentMemoryUsage": 4384, "peakMemoryUsage": 4640, "leakCount": 3, "invalidFreeCount": 2}, "leaks": [{"address": "0x55e1ad0b02b0", "size": 4000, "file": "showcase_demo.cpp", "line": 15, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}, {"address": "0x55e1ad0b18a0", "size": 128, "file": "showcase_demo.cpp", "line": 16, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}, {"address": "0x55e1ad0b1c50", "size": 256, "file": "showcase_demo.cpp", "line": 9, "timestamp": "2026-07-21 13:44:07", "threadId": 1, "kind": "array"}], "invalidFrees": [{"type": "DoubleFree", "address": "0x55e1ad0b14b0", "detail": "pointer was already freed earlier", "timestamp": "2026-07-21 13:44:07", "threadId": 1}, {"type": "AllocMismatch", "address": "0x55e1ad0b2040", "detail": "allocated with new[] but freed with delete", "timestamp": "2026-07-21 13:44:07", "threadId": 1}], "allocationSites": [{"location": "showcase_demo.cpp:33", "count": 5}, {"location": "showcase_demo.cpp:15", "count": 1}, {"location": "showcase_demo.cpp:16", "count": 1}, {"location": "showcase_demo.cpp:19", "count": 1}, {"location": "showcase_demo.cpp:23", "count": 1}, {"location": "showcase_demo.cpp:28", "count": 1}, {"location": "showcase_demo.cpp:9", "count": 1}], "allocations": [{"address": "0x55e1ad0b02b0", "size": 4000, "file": "showcase_demo.cpp", "line": 15, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b14b0", "size": 4, "file": "showcase_demo.cpp", "line": 33, "freed": true, "kind": "single"}, {"address": "0x55e1ad0b18a0", "size": 128, "file": "showcase_demo.cpp", "line": 16, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b1c50", "size": 256, "file": "showcase_demo.cpp", "line": 9, "freed": false, "kind": "array"}, {"address": "0x55e1ad0b2040", "size": 256, "file": "showcase_demo.cpp", "line": 28, "freed": true, "kind": "array"}], "allocationsTruncated": false};
+
+let report = null;
+
+function fmtBytes(n){
+  if(n < 1024) return n + ' B';
+  if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(2) + ' MB';
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function locOf(a){ return a.file + ':' + a.line; }
+
+function setFileStatus(name, hasIssues){
+  document.getElementById('fileStatusText').textContent = name;
+  document.getElementById('fileStatus').classList.toggle('bad', !!hasIssues);
+}
+
+async function loadInitial(){
+  try{
+    const res = await fetch('memory_report.json', {cache:'no-store'});
+    if(res.ok){ applyReport(await res.json(), 'memory_report.json'); return; }
+  }catch(e){}
+  applyReport(FALLBACK_REPORT, 'sample report — load your own');
+}
+
+function applyReport(data, label){
+  report = data;
+  setFileStatus(label, (data.statistics.leakCount + data.statistics.invalidFreeCount) > 0);
+  renderAll();
+}
+
+document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { try{ applyReport(JSON.parse(ev.target.result), file.name); }catch(err){ alert('Could not parse that file as a MemLens JSON report.'); } };
+  reader.readAsText(file);
+});
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if(!report) return;
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'memory_report.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('generateBtn').addEventListener('click', () => window.print());
+
+// drag & drop anywhere on the page
+let dragCounter = 0;
+const overlay = document.getElementById('dropOverlay');
+window.addEventListener('dragenter', e => { e.preventDefault(); dragCounter++; overlay.classList.add('active'); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('dragleave', e => { dragCounter--; if(dragCounter<=0){ dragCounter=0; overlay.classList.remove('active'); } });
+window.addEventListener('drop', e => {
+  e.preventDefault(); dragCounter = 0; overlay.classList.remove('active');
+  const file = e.dataTransfer.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { try{ applyReport(JSON.parse(ev.target.result), file.name); }catch(err){ alert('Could not parse that file as a MemLens JSON report.'); } };
+  reader.readAsText(file);
+});
+
+// nav
+document.querySelectorAll('.nav-link').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-' + item.dataset.view).classList.add('active');
+  });
+});
+
+function computeScore(s){
+  let score = 100;
+  score -= Math.min(50, s.leakCount * 8);
+  score -= Math.min(30, s.invalidFreeCount * 12);
+  const leakBytes = (report.leaks||[]).reduce((a,l)=>a+l.size,0);
+  if(leakBytes > 1024*1024) score -= 10; else if(leakBytes > 64*1024) score -= 5;
+  return Math.max(0, Math.round(score));
+}
+
+function renderAll(){
+  const s = report.statistics;
+  const score = computeScore(s);
+  const word = score >= 85 ? 'Healthy' : score >= 60 ? 'Needs attention' : 'Critical';
+  const color = score >= 85 ? getComputedStyle(document.documentElement).getPropertyValue('--ok') :
+                score >= 60 ? getComputedStyle(document.documentElement).getPropertyValue('--shine') :
+                getComputedStyle(document.documentElement).getPropertyValue('--leak');
+
+  document.getElementById('scoreNum').textContent = score + '%';
+  document.getElementById('scoreWord').textContent = word;
+  const circumference = 2 * Math.PI * 78;
+  const arc = document.getElementById('scoreArc');
+  arc.setAttribute('stroke-dasharray', circumference.toFixed(1));
+  arc.style.strokeDashoffset = (circumference * (1 - score/100)).toFixed(1);
+  arc.style.stroke = color;
+
+  const leakBytes = (report.leaks||[]).reduce((a,l)=>a+l.size,0);
+  document.getElementById('heroMsg').textContent =
+    (s.leakCount || s.invalidFreeCount)
+      ? `${s.leakCount} leak${s.leakCount!==1?'s':''} totaling ${fmtBytes(leakBytes)}, and ${s.invalidFreeCount} invalid free${s.invalidFreeCount!==1?'s':''} found in this run.`
+      : `No leaks or invalid frees detected. Peak memory stayed at ${fmtBytes(s.peakMemoryUsage)}.`;
+
+  document.getElementById('heroAllocs').textContent = s.totalAllocations;
+  document.getElementById('heroLeaks').textContent = s.leakCount;
+  document.getElementById('heroInvalid').textContent = s.invalidFreeCount;
+  document.getElementById('heroPeak').textContent = fmtBytes(s.peakMemoryUsage);
+
+  renderBreakdown();
+  renderLeakCards('leakCardsOverview', 3);
+  renderLeakCards('leakCardsFull', Infinity);
+  renderSitesTable();
+  renderMemMap();
+}
+
+function renderBreakdown(){
+  const s = report.statistics;
+  const leakBytes = (report.leaks||[]).reduce((a,l)=>a+l.size,0);
+  const invalidAddrs = new Set((report.invalidFrees||[]).map(e=>e.address));
+  const invalidBytes = (report.allocations||[]).filter(a=>invalidAddrs.has(a.address)).reduce((a,x)=>a+x.size,0);
+  const freedBytes = (report.allocations||[]).filter(a=>a.freed && !invalidAddrs.has(a.address)).reduce((a,x)=>a+x.size,0);
+  const total = Math.max(1, leakBytes + freedBytes + invalidBytes);
+
+  const rows = [
+    {name:'Freed cleanly', bytes:freedBytes, color:'var(--ok)'},
+    {name:'Leaked (still resident)', bytes:leakBytes, color:'var(--leak)'},
+    {name:'Invalid frees', bytes:invalidBytes, color:'var(--shine)'},
+  ];
+  document.getElementById('breakdownBars').innerHTML = rows.map(r => `
+    <div class="breakdown-row">
+      <div class="breakdown-top"><span class="name">${r.name}</span><span class="stat">${fmtBytes(r.bytes)} · ${(r.bytes/total*100).toFixed(0)}%</span></div>
+      <div class="breakdown-track"><div class="breakdown-fill" style="width:${(r.bytes/total*100).toFixed(1)}%;background:${r.color}"></div></div>
+    </div>`).join('');
+}
+
+function leakSeverity(size){
+  if(size >= 1024) return {label:'High', cls:'high'};
+  if(size >= 128) return {label:'Medium', cls:'med'};
+  return {label:'Low', cls:'low'};
+}
+
+function renderLeakCards(targetId, limit){
+  const el = document.getElementById(targetId);
+  let leaks = [...(report.leaks||[])].sort((a,b)=>b.size-a.size);
+  const shown = leaks.slice(0, limit);
+  if(!leaks.length){
+    el.innerHTML = `<div class="empty-state">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div class="t">No leaks detected</div><div class="d">Every tracked allocation was freed before the report was generated.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = shown.map((l,i) => {
+    const sev = leakSeverity(l.size);
+    const id = targetId + '-' + i;
+    return `<div class="leak-card">
+      <div class="leak-dot ${sev.cls}"></div>
+      <div class="leak-body">
+        <div class="leak-title">Possible leak — ${sev.label} impact</div>
+        <div class="leak-meta">Location <span class="mono cell-strong">${esc(locOf(l))}</span> &middot; ${l.kind === 'array' ? 'new[]' : 'new'} &middot; thread #${l.threadId}</div>
+        <div class="leak-detail" id="${id}">
+          <div>address: ${esc(l.address)}</div>
+          <div>allocated: ${esc(l.timestamp||'')}</div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div class="leak-est">${fmtBytes(l.size)}</div>
+        <button class="btn-inspect" onclick="document.getElementById('${id}').classList.toggle('open')" style="margin-top:8px;">Inspect</button>
+      </div>
+    </div>`;
+  }).join('') + (leaks.length > limit ? `<div style="text-align:center;margin-top:6px;"><span class="leak-meta">+${leaks.length-limit} more in the Leaks tab</span></div>` : '');
+}
+
+function renderSitesTable(){
+  let sites = [...(report.allocationSites||[])];
+  const q = (document.getElementById('siteSearch').value||'').toLowerCase();
+  if(q) sites = sites.filter(s => s.location.toLowerCase().includes(q));
+
+  const leakLocs = new Set((report.leaks||[]).map(locOf));
+  const bytesBySite = {};
+  (report.allocations||[]).forEach(a => { const k = locOf(a); bytesBySite[k] = (bytesBySite[k]||0) + a.size; });
+
+  document.getElementById('siteCount').textContent = `${sites.length} sites`;
+  document.getElementById('sitesTableBody').innerHTML = sites.map(s => {
+    const hasLeak = leakLocs.has(s.location);
+    const status = hasLeak ? {cls:'pill-leak', label:'Leak'} : s.count >= 5 ? {cls:'pill-heavy', label:'Heavy'} : {cls:'pill-ok', label:'Healthy'};
+    return `<tr>
+      <td class="mono cell-strong">${esc(s.location)}</td>
+      <td class="mono">${s.count}</td>
+      <td class="mono">${fmtBytes(bytesBySite[s.location]||0)}</td>
+      <td><span class="pill ${status.cls}"><span class="pill-dot"></span>${status.label}</span></td>
+    </tr>`;
+  }).join('');
+}
+document.getElementById('siteSearch').addEventListener('input', renderSitesTable);
+
+function renderMemMap(){
+  const allocs = report.allocations || [];
+  const invalidAddrs = new Set((report.invalidFrees||[]).map(e => e.address));
+  const grid = document.getElementById('memmapGrid');
+  const tooltip = document.getElementById('mmTooltip');
+
+  if(!allocs.length){ grid.innerHTML = '<p style="font-size:12.5px;color:var(--ink-soft);padding:20px;">This report has no per-allocation data to map.</p>'; return; }
+
+  grid.innerHTML = allocs.map(a => {
+    let cls = 'freed';
+    if(invalidAddrs.has(a.address)) cls = 'invalid';
+    else if(!a.freed) cls = 'leaked';
+    return `<div class="memmap-block ${cls}" data-addr="${esc(a.address)}" data-size="${a.size}" data-file="${esc(a.file)}" data-line="${a.line}" data-kind="${a.kind}" data-freed="${a.freed}"></div>`;
+  }).join('');
+
+  grid.querySelectorAll('.memmap-block').forEach(block => {
+    block.addEventListener('mousemove', e => {
+      const d = block.dataset;
+      const state = d.freed === 'true' ? (invalidAddrs.has(d.addr) ? 'Invalid free' : 'Freed cleanly') : 'Leaked (still allocated)';
+      tooltip.innerHTML = `<div class="t-title">${esc(d.addr)}</div>
+        <div class="t-row">size: ${fmtBytes(Number(d.size))}</div>
+        <div class="t-row">site: ${esc(d.file)}:${d.line}</div>
+        <div class="t-row">state: ${state}</div>`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY + 14) + 'px';
+    });
+    block.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+  });
+}
+
+loadInitial();
+</script>
+</body>
+</html>

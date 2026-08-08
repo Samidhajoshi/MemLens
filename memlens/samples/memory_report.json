@@ -1,0 +1,109 @@
+{
+  "project": "MemLens",
+  "generatedAt": "2026-07-21 13:44:07",
+  "statistics": {
+    "totalAllocations": 11,
+    "totalDeallocations": 8,
+    "currentMemoryUsage": 4384,
+    "peakMemoryUsage": 4640,
+    "leakCount": 3,
+    "invalidFreeCount": 2
+  },
+  "leaks": [
+    {
+      "address": "0x55e1ad0b02b0",
+      "size": 4000,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 15,
+      "timestamp": "2026-07-21 13:44:07",
+      "threadId": 1,
+      "kind": "array"
+    },
+    {
+      "address": "0x55e1ad0b18a0",
+      "size": 128,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 16,
+      "timestamp": "2026-07-21 13:44:07",
+      "threadId": 1,
+      "kind": "array"
+    },
+    {
+      "address": "0x55e1ad0b1c50",
+      "size": 256,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 9,
+      "timestamp": "2026-07-21 13:44:07",
+      "threadId": 1,
+      "kind": "array"
+    }
+  ],
+  "invalidFrees": [
+    {
+      "type": "DoubleFree",
+      "address": "0x55e1ad0b14b0",
+      "detail": "pointer was already freed earlier",
+      "timestamp": "2026-07-21 13:44:07",
+      "threadId": 1
+    },
+    {
+      "type": "AllocMismatch",
+      "address": "0x55e1ad0b2040",
+      "detail": "allocated with new[] but freed with delete",
+      "timestamp": "2026-07-21 13:44:07",
+      "threadId": 1
+    }
+  ],
+  "allocationSites": [
+    { "location": "instrumented_showcase_demo.cpp:33", "count": 5 },
+    { "location": "instrumented_showcase_demo.cpp:15", "count": 1 },
+    { "location": "instrumented_showcase_demo.cpp:16", "count": 1 },
+    { "location": "instrumented_showcase_demo.cpp:19", "count": 1 },
+    { "location": "instrumented_showcase_demo.cpp:23", "count": 1 },
+    { "location": "instrumented_showcase_demo.cpp:28", "count": 1 },
+    { "location": "instrumented_showcase_demo.cpp:9", "count": 1 }
+  ],
+  "allocations": [
+    {
+      "address": "0x55e1ad0b02b0",
+      "size": 4000,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 15,
+      "freed": false,
+      "kind": "array"
+    },
+    {
+      "address": "0x55e1ad0b14b0",
+      "size": 4,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 33,
+      "freed": true,
+      "kind": "single"
+    },
+    {
+      "address": "0x55e1ad0b18a0",
+      "size": 128,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 16,
+      "freed": false,
+      "kind": "array"
+    },
+    {
+      "address": "0x55e1ad0b1c50",
+      "size": 256,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 9,
+      "freed": false,
+      "kind": "array"
+    },
+    {
+      "address": "0x55e1ad0b2040",
+      "size": 256,
+      "file": "instrumented_showcase_demo.cpp",
+      "line": 28,
+      "freed": true,
+      "kind": "array"
+    }
+  ],
+  "allocationsTruncated": false
+}
